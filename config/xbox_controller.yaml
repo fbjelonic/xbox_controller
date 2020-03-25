@@ -1,0 +1,5 @@
+right_joystick: 3 # axis[3] = Right joystick of xbox controller
+left_joystick: 0 # axis[0] = Right joystick of xbox controller
+rt_button: 2 # axis[2] = RT Button
+lt_button: 5 # axis[5] = LT Button
+max_vel: 255 # max velocity of diff drive
