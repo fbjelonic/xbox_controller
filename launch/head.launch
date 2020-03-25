@@ -1,0 +1,5 @@
+<launch>
+        <node pkg="joy" type="joy_node" name="joy"/>
+	<node pkg="xbox_controller" type="xbox_controller" name="xbox_controller"/>
+	<node pkg="rosserial_python" type="serial_node.py" name="rosserial_python" args="/dev/ttyUSB0" />
+</launch> 
