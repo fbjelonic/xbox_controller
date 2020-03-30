@@ -1,0 +1,7 @@
+<launch>
+        <node pkg="joy" type="joy_node" name="joy"/>
+	<node pkg="xbox_controller" type="xbox_controller" name="xbox_controller">
+		<rosparam command="load"
+			file="$(find xbox_controller)/config/xbox_controller.yaml" />
+	</node>
+</launch> 
