@@ -6,18 +6,23 @@ XboxController::XboxController(ros::NodeHandle& nodeHandle) :
   nodeHandle_(nodeHandle)
 {
   // publish messages for raspberry pi (for 2wd arduino)
-  servo_pub_ = nodeHandle_.advertise<std_msgs::UInt16>("servo", 10);
-  drive_pub_ = nodeHandle_.advertise<geometry_msgs::Twist>("drive", 10);
+  raspi_pub_ = nodeHandle_.advertise<geometry_msgs::Twist>("engine", 10);
 
   // get controller input from joy topic
   joy_sub_ = nodeHandle_.subscribe("/joy", 10, &XboxController::joyCallback, this);
 
+  servo_angle_.data = 90;
+  left_wheel_.data = 0;
+  right_wheel_.data = 0;
+
   if (!readParameters())
   {
-    ROS_ERROR("Could not read parameters from .yaml file!");
+    ROS_ERROR("Could not read from parameter server!");
     ros::shutdown();
   }
 }
+
+
 
 bool XboxController::readParameters()
 {
@@ -31,52 +36,80 @@ bool XboxController::readParameters()
 
 XboxController::~XboxController()
 {
-  drive_pub_.publish(handleDiffdrive(0,0,0)); // stop the car, in case of execution failure or shutdown
+  // Stop the car
+  left_wheel_.data = 0;
+  right_wheel_.data = 0;
+  servo_angle_.data = 90;
+  sendRequest();
 }
 
 void XboxController::joyCallback(const sensor_msgs::Joy& msg)
 {
-  // extract value of right joystick
+  // extract value of xbox controller
   double rightJoystickValue = static_cast<double>(msg.axes.at(static_cast<size_t>(right_joystick_)));
-  servo_pub_.publish(handleUltrasonicSensor(rightJoystickValue));
-
   double leftJoystickValue = static_cast<double>(msg.axes.at(static_cast<size_t>(left_joystick_)));
   double rt_buttonValue = static_cast<double>(msg.axes.at(static_cast<size_t>(rt_button_)));
   double lt_buttonValue = static_cast<double>(msg.axes.at(static_cast<size_t>(lt_button_)));
 
-  drive_pub_.publish(handleDiffdrive(rt_buttonValue, lt_buttonValue, leftJoystickValue));
+  handleUltrasonicSensor(rightJoystickValue);
+  handleDiffdrive(rt_buttonValue, lt_buttonValue, leftJoystickValue);
+
+  sendRequest();
 }
 
-std_msgs::UInt16 XboxController::handleUltrasonicSensor(double controllerInput)
+void XboxController::sendRequest()
 {
-  std_msgs::UInt16 newmsg;
-  newmsg.data = 90; // set sensor to middle if nothing's happening
-  if (controllerInput > 0.2 || controllerInput < -0.2) {
-    newmsg.data = 90 + 90 * static_cast<uint16_t>(controllerInput);
+  geometry_msgs::Twist my_msg;
+  my_msg.linear.x = left_wheel_.data; // left wheel speed
+  my_msg.linear.y = right_wheel_.data; // right wheel speed
+  my_msg.angular.x = servo_angle_.data; // Ultrasonic Sensor Angle
+
+  raspi_pub_.publish(my_msg);
+}
+
+void XboxController::handleUltrasonicSensor(double controllerInput)
+{
+  if (controllerInput > 0.1 || controllerInput < -0.1) {
+    servo_angle_.data = static_cast<uint8_t>(90 + 90 * controllerInput);
   }
-  return newmsg;
+  else {
+    servo_angle_.data = 90;
+  }
 }
 
-geometry_msgs::Twist XboxController::handleDiffdrive(double rt, double lt, double left_joy)
+void XboxController::handleDiffdrive(double rt, double lt, double left_joy)
 {
-  geometry_msgs::Twist drivemsg;
-  drivemsg.linear.x = 0;
-  drivemsg.angular.z = 0;
-
+  double angular_speed = 0;
+  double left_wheel = 0;
+  double right_wheel = 0;
   // angular velocity
   if (left_joy > 0.1 || left_joy < -0.1) {
-    drivemsg.angular.z = left_joy * max_vel_;
+    angular_speed = left_joy * max_vel_;
   }
 
-  // linear velocity
+  // wheel velocity
   if (rt < 0) {
-    drivemsg.linear.x = - rt * 255; // forward
+    left_wheel = - rt * static_cast<double>(max_vel_) - angular_speed; // forward
+    right_wheel = - rt * static_cast<double>(max_vel_) + angular_speed;
   }
   else if (lt < 0) {
-    drivemsg.linear.x = lt * 255; // backward
+    left_wheel = - lt * static_cast<double>(max_vel_) - angular_speed; // forward
+    right_wheel = - lt * static_cast<double>(max_vel_) + angular_speed;
   }
 
-  return drivemsg;
+  left_wheel_.data = threshold(left_wheel);
+  right_wheel_.data = threshold(right_wheel);
+}
+
+int16_t XboxController::threshold(double wheel)
+{
+  if (wheel > max_vel_) {
+    return static_cast<int16_t>(max_vel_);
+  }
+  else if (wheel < - max_vel_) {
+    return static_cast<int16_t>(-max_vel_);
+  }
+  return static_cast<int16_t>(wheel);
 }
 
 } /* namespace */
