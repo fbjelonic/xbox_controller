@@ -89,13 +89,17 @@ void XboxController::handleDiffdrive(double rt, double lt, double left_joy)
 
   // wheel velocity
   if (rt < 0) {
-    left_wheel = - rt * static_cast<double>(max_vel_) - angular_speed; // forward
-    right_wheel = - rt * static_cast<double>(max_vel_) + angular_speed;
+    left_wheel = - rt * static_cast<double>(max_vel_); // forward
+    right_wheel = - rt * static_cast<double>(max_vel_);
   }
   else if (lt < 0) {
-    left_wheel = - lt * static_cast<double>(max_vel_) - angular_speed; // forward
-    right_wheel = - lt * static_cast<double>(max_vel_) + angular_speed;
+    left_wheel = lt * static_cast<double>(max_vel_); // forward
+    right_wheel = lt * static_cast<double>(max_vel_);
   }
+
+  left_wheel -= angular_speed;
+  right_wheel += angular_speed;
+  ROS_INFO("Left wheel: %f, right wheel: %f", left_wheel, right_wheel);
 
   left_wheel_.data = threshold(left_wheel);
   right_wheel_.data = threshold(right_wheel);
