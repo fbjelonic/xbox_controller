@@ -28,6 +28,10 @@ private:
   int rt_button_;
   int lt_button_;
   int max_vel_;
+  double ratio_;
+
+  bool lt_used_;
+  bool rt_used_;
 
   std_msgs::Int16 left_wheel_;
   std_msgs::Int16 right_wheel_;

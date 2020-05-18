@@ -3,7 +3,7 @@
 namespace xbox_controller {
 
 XboxController::XboxController(ros::NodeHandle& nodeHandle) :
-  nodeHandle_(nodeHandle)
+  lt_used_(false), rt_used_(false), nodeHandle_(nodeHandle)
 {
   // publish messages for raspberry pi (for 2wd arduino)
   raspi_pub_ = nodeHandle_.advertise<geometry_msgs::Twist>("engine", 10);
@@ -20,6 +20,7 @@ XboxController::XboxController(ros::NodeHandle& nodeHandle) :
     ROS_ERROR("Could not read from parameter server!");
     ros::shutdown();
   }
+  max_vel_  = max_vel_ * ratio_;
 }
 
 
@@ -31,6 +32,7 @@ bool XboxController::readParameters()
   if (!nodeHandle_.getParam("rt_button", rt_button_)) return false;
   if (!nodeHandle_.getParam("lt_button", lt_button_)) return false;
   if (!nodeHandle_.getParam("max_vel", max_vel_)) return false;
+  if (!nodeHandle_.getParam("speed_ratio", ratio_)) return false;
   return true;
 }
 
@@ -87,14 +89,23 @@ void XboxController::handleDiffdrive(double rt, double lt, double left_joy)
     angular_speed = left_joy * max_vel_;
   }
 
-  // wheel velocity
-  if (rt < 0) {
-    left_wheel = - rt * static_cast<double>(max_vel_); // forward
-    right_wheel = - rt * static_cast<double>(max_vel_);
+  if (rt!=0 && !rt_used_)
+  {
+    rt_used_ = true;
   }
-  else if (lt < 0) {
-    left_wheel = lt * static_cast<double>(max_vel_); // forward
-    right_wheel = lt * static_cast<double>(max_vel_);
+  if (lt!=0 && !lt_used_)
+  {
+    lt_used_ = true;
+  }
+
+  // wheel velocity
+  if (rt < 1 && rt_used_) {
+    left_wheel = - (rt-1) * static_cast<double>(max_vel_) / 2; // forward
+    right_wheel = - (rt-1) * static_cast<double>(max_vel_) / 2;
+  }
+  else if (lt < 1 && lt_used_) {
+    left_wheel = (lt-1) * static_cast<double>(max_vel_) / 2; // forward
+    right_wheel = (lt-1) * static_cast<double>(max_vel_) / 2;
   }
 
   left_wheel -= angular_speed;
