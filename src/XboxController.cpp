@@ -3,7 +3,7 @@
 namespace xbox_controller {
 
 XboxController::XboxController(ros::NodeHandle& nodeHandle) :
-  lt_used_(false), rt_used_(false), nodeHandle_(nodeHandle), it_(nodeHandle_)
+  lt_used_(false), rt_used_(false), nodeHandle_(nodeHandle)
 {
   //cv::VideoCapture cap;
   //cap.open(0);
@@ -16,20 +16,19 @@ XboxController::XboxController(ros::NodeHandle& nodeHandle) :
   //out_msg_->encoding = sensor_msgs::image_encodings::BGR8;
 
   // publish messages for raspberry pi (for 2wd arduino)
-  raspi_pub_ = nodeHandle_.advertise<geometry_msgs::Twist>("engine", 10);
+  raspi_pub_ = nodeHandle_.advertise<geometry_msgs::Twist>("engine", 1);
 
   // get controller input from joy topic
   joy_sub_ = nodeHandle_.subscribe("/joy", 10, &XboxController::joyCallback, this);
 
   // publish image to yolo_ros
-  image_sub_ = nodeHandle_.subscribe("/darknet_ros/detection_image", 1, &XboxController::imageCallback, this);
+  // image_sub_ = nodeHandle_.subscribe("/darknet_ros/detection_image", 1, &XboxController::imageCallback, this);
   //image_pub_ = it_.advertise("/camera/rgb/image_raw", 1);
-  ROS_WARN("Sending mesage now:");
-  ROS_WARN("Finished sending messages");
+  // ROS_WARN("Sending mesage now:");
+  // ROS_WARN("Finished sending messages");
 
-  servo_angle_.data = 90;
-  left_wheel_.data = 0;
-  right_wheel_.data = 0;
+  speed_.data = 0;
+  steering_.data = 0;
 
   if (!readParameters())
   {
@@ -37,6 +36,7 @@ XboxController::XboxController(ros::NodeHandle& nodeHandle) :
     ros::shutdown();
   }
   max_vel_  = max_vel_ * ratio_;
+  sendRequest();
 }
 
 
@@ -55,9 +55,8 @@ bool XboxController::readParameters()
 XboxController::~XboxController()
 {
   // Stop the car
-  left_wheel_.data = 0;
-  right_wheel_.data = 0;
-  servo_angle_.data = 90;
+  speed_.data = 0;
+  steering_.data = 0;
   sendRequest();
 }
 
@@ -72,49 +71,34 @@ void XboxController::joyCallback(const sensor_msgs::Joy& msg)
   double rt_buttonValue = static_cast<double>(msg.axes.at(static_cast<size_t>(rt_button_)));
   double lt_buttonValue = static_cast<double>(msg.axes.at(static_cast<size_t>(lt_button_)));
 
-  handleUltrasonicSensor(rightJoystickValue);
   handleDiffdrive(rt_buttonValue, lt_buttonValue, leftJoystickValue);
 
   sendRequest();
 }
 
-void XboxController::imageCallback(const sensor_msgs::Image &img)
-{
-  cv_bridge::CvImagePtr ptr;
-  ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::BGR8);
-  cv::imshow("Live", ptr->image);
-  cv::waitKey(0);
-}
-
 void XboxController::sendRequest()
 {
   geometry_msgs::Twist my_msg;
-  my_msg.linear.x = left_wheel_.data; // left wheel speed
-  my_msg.linear.y = right_wheel_.data; // right wheel speed
-  my_msg.angular.x = servo_angle_.data; // Ultrasonic Sensor Angle
+  my_msg.linear.x = speed_.data; // left wheel speed
+  my_msg.linear.y = 0;
+  my_msg.linear.z = 0;
+  my_msg.angular.x = steering_.data; // Ultrasonic Sensor Angle
+  my_msg.angular.y = 0;
+  my_msg.angular.z = 0;
 
   raspi_pub_.publish(my_msg);
 }
 
-void XboxController::handleUltrasonicSensor(double controllerInput)
-{
-  if (controllerInput > 0.1 || controllerInput < -0.1) {
-    servo_angle_.data = static_cast<uint8_t>(90 + 90 * controllerInput);
-  }
-  else {
-    servo_angle_.data = 90;
-  }
-}
-
 void XboxController::handleDiffdrive(double rt, double lt, double left_joy)
 {
-  double angular_speed = 0;
-  double left_wheel = 0;
-  double right_wheel = 0;
+  // speed_.data = - (rt-1) * static_cast<double>(max_vel_) / 2;
+  steering_.data = static_cast<uint8_t>(90 + 90 * left_joy);
+  // double left_wheel = 0;
+  // double right_wheel = 0;
   // angular velocity
-  if (left_joy > 0.1 || left_joy < -0.1) {
-    angular_speed = left_joy * max_vel_;
-  }
+  // if (left_joy > 0.1 || left_joy < -0.1) {
+  //   angular_speed = left_joy * max_vel_;
+  // }
 
   if (rt!=0 && !rt_used_)
   {
@@ -127,31 +111,21 @@ void XboxController::handleDiffdrive(double rt, double lt, double left_joy)
 
   // wheel velocity
   if (rt < 1 && rt_used_) {
-    left_wheel = - (rt-1) * static_cast<double>(max_vel_) / 2; // forward
-    right_wheel = - (rt-1) * static_cast<double>(max_vel_) / 2;
+    speed_.data = - (rt-1) * static_cast<double>(max_vel_) / 2; // forward
   }
   else if (lt < 1 && lt_used_) {
-    left_wheel = (lt-1) * static_cast<double>(max_vel_) / 2; // forward
-    right_wheel = (lt-1) * static_cast<double>(max_vel_) / 2;
+    speed_.data = (lt-1) * static_cast<double>(max_vel_) / 2; // backward
+  }
+  else
+  {
+      speed_.data = 0;
   }
 
-  left_wheel -= angular_speed;
-  right_wheel += angular_speed;
-  ROS_INFO("Left wheel: %f, right wheel: %f", left_wheel, right_wheel);
+  // left_wheel -= angular_speed;
+  // right_wheel += angular_speed;
+  // ROS_INFO("Left wheel: %f, right wheel: %f", left_wheel, right_wheel);
 
-  left_wheel_.data = threshold(left_wheel);
-  right_wheel_.data = threshold(right_wheel);
+  // left_wheel_.data = threshold(left_wheel);
+  // right_wheel_.data = threshold(right_wheel);
 }
-
-int16_t XboxController::threshold(double wheel)
-{
-  if (wheel > max_vel_) {
-    return static_cast<int16_t>(max_vel_);
-  }
-  else if (wheel < - max_vel_) {
-    return static_cast<int16_t>(-max_vel_);
-  }
-  return static_cast<int16_t>(wheel);
-}
-
 } /* namespace */

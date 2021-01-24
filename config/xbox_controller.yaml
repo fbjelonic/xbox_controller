@@ -3,4 +3,4 @@ left_joystick: 0 # axis[0] = Right joystick of xbox controller
 rt_button: 5 # axis[5] = RT Button
 lt_button: 2 # axis[2] = LT Button
 max_vel: 255 # max velocity of diff drive
-speed_ratio: 0.2 # percentage of power allowed
+speed_ratio: 0.5 # percentage of power allowed

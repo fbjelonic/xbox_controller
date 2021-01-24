@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/filip/banana_ws/src/xbox_controller/cmake-build-debug/devel/setup.sh

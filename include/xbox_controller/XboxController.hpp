@@ -21,18 +21,15 @@ namespace xbox_controller {
 
 class XboxController {
 public:
-  XboxController(ros::NodeHandle& nodeHandle);
+  explicit XboxController(ros::NodeHandle& nodeHandle);
   virtual ~XboxController();
   void joyCallback(const sensor_msgs::Joy& msg);
-  void imageCallback(const sensor_msgs::Image& img);
 
 private:
   bool readParameters();
 
-  void handleUltrasonicSensor(double controllerInput);
   void handleDiffdrive(double rt, double lt, double left_joy);
   void sendRequest();
-  int16_t threshold(double wheel);
 
   int right_joystick_;
   int left_joystick_;
@@ -44,17 +41,12 @@ private:
   bool lt_used_;
   bool rt_used_;
 
-  cv::Mat image_;
-
-  std_msgs::Int16 left_wheel_;
-  std_msgs::Int16 right_wheel_;
-  std_msgs::UInt8 servo_angle_;
+  std_msgs::Int16 speed_;
+  std_msgs::UInt8 steering_;
 
   ros::Publisher raspi_pub_;
   ros::Subscriber joy_sub_;
   ros::NodeHandle nodeHandle_;
-  image_transport::ImageTransport it_;
-  ros::Subscriber image_sub_;
 };
 
 }
